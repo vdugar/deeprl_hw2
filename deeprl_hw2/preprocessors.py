@@ -5,6 +5,7 @@ from PIL import Image
 
 from deeprl_hw2 import utils
 from deeprl_hw2.core import Preprocessor
+from collections import deque
 
 
 class HistoryPreprocessor(Preprocessor):
@@ -23,18 +24,62 @@ class HistoryPreprocessor(Preprocessor):
 
     """
 
+    #Variables of the History class.
+    history_length=1
+    d_nw_int=deque()
+    d_mem_flt=deque()
+
     def __init__(self, history_length=1):
+
+        # Create DeQue data type and fill up zeros for lenght(history_length)
+         #deque(maxlen=history_length+1)  que length and name 
+        self.history_length=history_length
+        empty=np.zeros((84,84))       
+        # create empty que with zero images     
+        for c in range(history_length):            
+            self.d_nw_int.append(empty)        
+            self.d_mem_flt.append(empty)
         pass
 
     def process_state_for_network(self, state):
         """You only want history when you're deciding the current action to take."""
-        pass
+        self.d_nw_int.append(state)
+
+        #run the loop for history length state(3)+1=4.
+        for i in range(self.history_length+1):
+            if i<=(len(d_nw_int)+1): # ensuring that we never overflow or go beyond length of Que.
+                if i==0:
+                    image_block_nw=d_nw_int[i]
+                else:
+                    image_block_nw=np.dstack(( image_block_nw , d_nw_int[i] ))# stack on the last axis
+        #remove element from the que on the left.
+        self.d_nw_int.popleft()        
+        # return 84x84x(history_length+1) image block
+        return image_block_nw
+        
+
+ def process_state_for_memory(self, state):
+        """You only want history when you're deciding the current action to take."""
+        self.d_mem_flt.append(state)
+        #run the loop for history length state(3)+1=4.
+        for i in range(self.history_length+1):
+            if i<=(len(d_mem_flt)+1): # ensuring that we never overflow or go beyond length of Que.
+                if i==0:
+                    image_block_flt=d_mem_flt[i]
+                else:
+                    image_block_flt=np.dstack( ( image_block_flt , d_mem_flt[i]))# stack on the last axis
+        #remove element from the que on the left.
+        self.d_mem_flt.popleft()        
+        # return 84x84x(history_length+1) image block
+        return image_block_flt
+
 
     def reset(self):
         """Reset the history sequence.
 
         Useful when you start a new episode.
         """
+        d.clear() # empties the deque.
         pass
 
     def get_config(self):
