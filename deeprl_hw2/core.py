@@ -210,16 +210,40 @@ class ReplayMemory:
         We recommend using a list as a ring buffer. Just track the
         index where the next sample should be inserted in the list.
         """
-        pass
+        self.max_size = max_size
+        self.window_length = window_length
+        self.idx = 0
+        self.memory = []
+        self.is_full = False
 
-    def append(self, state, action, reward):
-        raise NotImplementedError('This method should be overridden')
+    def append(self, state, action, reward, next_state, is_terminal):
+        sample = Sample(state, action, reward, next_state, is_terminal)
 
-    def end_episode(self, final_state, is_terminal):
-        raise NotImplementedError('This method should be overridden')
+        self.memory[self.idx] = sample
+        self.idx += 1
+
+        if self.idx == self.max_size - 1:
+          self.is_full = True
+          self.idx = 0
+
+    # def end_episode(self, final_state, is_terminal):
+    #     raise NotImplementedError('This method should be overridden')
 
     def sample(self, batch_size, indexes=None):
-        raise NotImplementedError('This method should be overridden')
+        samples = []
+        range_high = self.max_size
+        if not self.is_full:
+          range_high = self.idx
+
+        if indexes is not None:
+          for i in indexes:
+            samples.append(self.memory[i])
+        else:
+          for i in range(0, batch_size):
+            samples.append(self.memory[np.random.randint(0, range_high)])
+
+        return samples
 
     def clear(self):
-        raise NotImplementedError('This method should be overridden')
+        self.idx = 0
+        self.is_full = False
