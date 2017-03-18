@@ -213,7 +213,7 @@ class ReplayMemory:
         self.max_size = max_size
         self.window_length = window_length
         self.idx = 0
-        self.memory = []
+        self.memory = [None] * max_size
         self.is_full = False
 
     def append(self, state, action, reward, next_state, is_terminal):

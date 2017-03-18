@@ -105,21 +105,7 @@ class AtariPreprocessor(Preprocessor):
         """
         img = Image.fromarray(np.uint8(state))
         img = img.convert('L').resize(self.downsample_size).crop((0, 0, 84, 84))
-        return np.array(img, dtype=np.float32) / 255
-
-
-    def process_batch(self, samples):
-        """The batches from replay memory will be uint8, convert to float32.
-
-        Same as process_state_for_network but works on a batch of
-        samples from the replay memory. Meaning you need to convert
-        both state and next state values.
-        """
-        for sample in samples:
-            sample.state = np.float32(sample.state) / 255
-            sample.next_state = np.float32(sample.next_state) / 255
-
-        return samples
+        return np.array(img, dtype=np.float32) / 255.
 
     def process_reward(self, reward):
         """Clip reward between -1 and 1."""
@@ -140,4 +126,31 @@ class PreprocessorSequence(Preprocessor):
     return history.process_state_for_network(state)
     """
     def __init__(self, preprocessors):
-        pass
+        self.preprocessors = preprocessors
+
+    def process_state_for_network(self, frame):
+        for p in self.preprocessors:
+            frame = p.process_state_for_network(frame)
+
+        return frame
+
+    def process_state_for_memory(self, frame):
+        for p in self.preprocessors:
+            frame = p.process_state_for_memory(frame)
+
+        return frame
+        
+    def process_batch(self, samples):
+        """The batches from replay memory will be uint8, convert to float32.
+
+        Same as process_state_for_network but works on a batch of
+        samples from the replay memory. Meaning you need to convert
+        both state and next state values.
+        """
+        new_samples = []
+        for sample in samples:
+            s = Sample(np.float32(sample.state) / 255., sample.action, sample.reward, np.float32(sample.next_state) / 255., sample.is_terminal)
+            new_samples.append(s)
+
+        return new_samples
+
