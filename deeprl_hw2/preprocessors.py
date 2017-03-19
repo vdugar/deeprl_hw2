@@ -47,11 +47,11 @@ class HistoryPreprocessor(Preprocessor):
 
         #run the loop for history length state(3)+1=4.
         for i in range(self.history_length+1):
-            if i<=(len(d_nw_int)+1): # ensuring that we never overflow or go beyond length of Que.
+            if i<=(len(self.d_nw_int)+1): # ensuring that we never overflow or go beyond length of Que.
                 if i==0:
-                    image_block_nw=d_nw_int[i]
+                    image_block_nw=self.d_nw_int[i]
                 else:
-                    image_block_nw=np.dstack(( image_block_nw , d_nw_int[i] ))# stack on the last axis
+                    image_block_nw=np.dstack(( image_block_nw , self.d_nw_int[i] ))# stack on the last axis
         #remove element from the que on the left.
         self.d_nw_int.popleft()        
         # return 84x84x(history_length+1) image block
@@ -63,11 +63,11 @@ class HistoryPreprocessor(Preprocessor):
         self.d_mem_flt.append(state)
         #run the loop for history length state(3)+1=4.
         for i in range(self.history_length+1):
-            if i<=(len(d_mem_flt)+1): # ensuring that we never overflow or go beyond length of Que.
+            if i<=(len(self.d_mem_flt)+1): # ensuring that we never overflow or go beyond length of Que.
                 if i==0:
-                    image_block_flt=d_mem_flt[i]
+                    image_block_flt=self.d_mem_flt[i]
                 else:
-                    image_block_flt=np.dstack( ( image_block_flt , d_mem_flt[i]))# stack on the last axis
+                    image_block_flt=np.dstack( ( image_block_flt , self.d_mem_flt[i]))# stack on the last axis
         #remove element from the que on the left.
         self.d_mem_flt.popleft()        
         # return 84x84x(history_length+1) image block
