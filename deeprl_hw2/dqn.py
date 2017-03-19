@@ -42,13 +42,20 @@ class DQNAgent:
                  q_network,
                  preprocessor,
                  memory,
-                 policy,
                  gamma,
                  target_update_freq,
                  num_burn_in,
                  train_freq,
                  batch_size):
-        pass
+        self.q_network = q_network
+        self.preprocessor = preprocessor
+        self.memory = memory
+        self.gamma = gamma
+        self.target_update_freq = target_update_freq
+        self.num_burn_in = num_burn_in
+        self.train_freq = train_freq
+        self.batch_size = batch_size
+        self.target_network = None
 
     def compile(self, optimizer, loss_func):
         """Setup all of the TF graph variables/ops.
