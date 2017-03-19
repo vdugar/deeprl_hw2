@@ -74,7 +74,56 @@ class DQNAgent:
         keras.optimizers.Optimizer class. Specifically the Adam
         optimizer.
         """
-        pass
+           
+        #Building the mode
+
+        num_actions=self.num_actions     
+        stack_size=self.history_
+        rows_image=self.rows_image
+        colms_image=self.colms_image    
+
+        #for now
+        stack_size=4
+        rows_image=84
+        colms_image=84
+        num_actions=4
+        # loss function is hardcoded to huber_loss
+        # optimizer hardcoded to adam
+       
+
+        sess=tf.Session() #create Tensor Flow Session
+
+
+        model=Sequential()
+        model.add(Convolution2D (32 , 8 , 8, subsample = (4,4),input_shape=(stack_size,rows_image,colms_image))) # subsample is the stride ( jump of the convolution filter)
+        model.add( Activation( 'relu'))
+        model.add(Convolution2D (64 , 4 , 4, subsample = (2,2))
+        model.add( Activation( 'relu'))
+        model.add(Convolution2D (64 , 3 , 3, subsample = (1,1))
+        model.add( Activation( 'relu'))
+        model.add( Flatten() )
+        model.add( Dense(512))
+        model.add( Activation( 'relu'))
+        model.add(Dense(num_actions) #no. of action determine    
+        #changing to RMSProp
+        #rms_opt=keras.optimizers.RMSprop(lr=0.001, rho=0.9, epsilon=1e-08, decay=0.0)    
+        #model.compile(loss='mse',optimizer=rms_opt)
+        adam = Adam(lr=1e-6)
+        model.compile(loss=huber_loss,optimizer=adam)
+
+        # some method to iniatlize 
+        # model.add(Convolution2D(32, 8, 8, subsample=(4,4),init=lambda shape, name: normal(shape, scale=0.01, name=name), border_mode='same',input_shape=(stack_size,rows_image,colms_image)))
+        # model.add(Convolution2D(64, 3, 3, subsample=(1,1),init=lambda shape, name: normal(shape, scale=0.01, name=name), border_mode='same'))
+        # model.add(Dense(512, init=lambda shape, name: normal(shape, scale=0.01, name=name)))
+        # model.add(Dense(num_actions,init=lambda shape, name: normal(shape, scale=0.01, name=name)))   
+
+        #changing to RMSProp        
+        #rms_opt=keras.optimizers.RMSprop(lr=0.001, rho=0.9, epsilon=1e-08, decay=0.0)    
+        #model.compile(loss='mse',optimizer=rms_opt)        
+
+        return model
+
+        
 
     def calc_q_values(self, state):
         """Given a state (or batch of states) calculate the Q-values.
