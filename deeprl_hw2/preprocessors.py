@@ -24,54 +24,46 @@ class HistoryPreprocessor(Preprocessor):
 
     """
 
-    #Variables of the History class.
-    history_length=1
-    d_nw_int=deque()
-    d_mem_flt=deque()
-
     def __init__(self, history_length=1):
 
         # Create DeQue data type and fill up zeros for lenght(history_length)
-         #deque(maxlen=history_length+1)  que length and name 
-        self.history_length=history_length
-        empty=np.zeros((84,84))       
-        # create empty que with zero images     
-        for c in range(history_length):            
-            self.d_nw_int.append(empty)        
-            self.d_mem_flt.append(empty)
-        pass
+        self.history_length = history_length
+        self.d_nw_flt = deque()     # network history
+        self.d_mem_int = deque()    # memory history 
+        
+        # create empty queue with zero images     
+        for i in range(history_length):            
+            self.d_nw_flt.append(np.zeros((84,84), dtype=np.float32))        
+            self.d_mem_int.append(np.zeros((84,84), dtype=np.uint8) )
 
-    def process_state_for_network(self, state):
-        """You only want history when you're deciding the current action to take."""
-        self.d_nw_int.append(state)
-
-        #run the loop for history length state(3)+1=4.
-        for i in range(self.history_length+1):
-            if i<=(len(d_nw_int)+1): # ensuring that we never overflow or go beyond length of Que.
-                if i==0:
-                    image_block_nw=d_nw_int[i]
-                else:
-                    image_block_nw=np.dstack(( image_block_nw , d_nw_int[i] ))# stack on the last axis
+    def process_state_for_network(self, state, **kwargs):
         #remove element from the que on the left.
-        self.d_nw_int.popleft()        
-        # return 84x84x(history_length+1) image block
+        self.d_nw_flt.popleft()
+
+        # append current state
+        self.d_nw_flt.append(state)
+
+        # construct sequence
+        image_block_nw = self.d_nw_flt[0]
+        for i in range(1, self.history_length):
+            image_block_nw = np.dstack( (image_block_nw, self.d_nw_flt[i]) )
+        
         return image_block_nw
         
 
- def process_state_for_memory(self, state):
-        """You only want history when you're deciding the current action to take."""
-        self.d_mem_flt.append(state)
-        #run the loop for history length state(3)+1=4.
-        for i in range(self.history_length+1):
-            if i<=(len(d_mem_flt)+1): # ensuring that we never overflow or go beyond length of Que.
-                if i==0:
-                    image_block_flt=d_mem_flt[i]
-                else:
-                    image_block_flt=np.dstack( ( image_block_flt , d_mem_flt[i]))# stack on the last axis
+    def process_state_for_memory(self, state, **kwargs):
         #remove element from the que on the left.
-        self.d_mem_flt.popleft()        
-        # return 84x84x(history_length+1) image block
-        return image_block_flt
+        self.d_mem_int.popleft()
+
+        # append current state
+        self.d_mem_int.append(state)
+
+        # construct sequence
+        image_block_nw = self.d_mem_int[0]
+        for i in range(1, self.history_length):
+            image_block_nw = np.dstack( (image_block_nw, self.d_mem_int[i]) )
+        
+        return image_block_nw
 
 
     def reset(self):
@@ -79,8 +71,11 @@ class HistoryPreprocessor(Preprocessor):
 
         Useful when you start a new episode.
         """
-        d.clear() # empties the deque.
-        pass
+        self.d_nw_flt.clear()
+        self.d_mem_int.clear()
+        for i in range(history_length):            
+            self.d_nw_flt.append(np.zeros((84,84), dtype=np.float32))        
+            self.d_mem_int.append(np.zeros((84,84), dtype=np.uint8) )
 
     def get_config(self):
         return {'history_length': self.history_length}
@@ -126,7 +121,7 @@ class AtariPreprocessor(Preprocessor):
         self.new_size = new_size
         self.downsample_size = (110, 84)
 
-    def process_state_for_memory(self, state):
+    def process_state_for_memory(self, state, **kwargs):
         """Scale, convert to greyscale and store as uint8.
 
         We don't want to save floating point numbers in the replay
@@ -141,7 +136,7 @@ class AtariPreprocessor(Preprocessor):
         return np.array(img, dtype=np.uint8)
 
 
-    def process_state_for_network(self, state):
+    def process_state_for_network(self, state, **kwargs):
         """Scale, convert to greyscale and store as float32.
 
         Basically same as process state for memory, but this time
@@ -156,6 +151,8 @@ class AtariPreprocessor(Preprocessor):
         """Clip reward between -1 and 1."""
         return np.sign(reward)
 
+    def reset():
+        pass
 
 class PreprocessorSequence(Preprocessor):
     """You may find it useful to stack multiple prepcrocesosrs (such as the History and the AtariPreprocessor).
@@ -173,15 +170,15 @@ class PreprocessorSequence(Preprocessor):
     def __init__(self, preprocessors):
         self.preprocessors = preprocessors
 
-    def process_state_for_network(self, frame):
+    def process_state_for_network(self, frame, **kwargs):
         for p in self.preprocessors:
-            frame = p.process_state_for_network(frame)
+            frame = p.process_state_for_network(frame, **kwargs)
 
         return frame
 
-    def process_state_for_memory(self, frame):
+    def process_state_for_memory(self, frame, **kwargs):
         for p in self.preprocessors:
-            frame = p.process_state_for_memory(frame)
+            frame = p.process_state_for_memory(frame, **kwargs)
 
         return frame
         
@@ -198,4 +195,12 @@ class PreprocessorSequence(Preprocessor):
             new_samples.append(s)
 
         return new_samples
+
+    def process_reward(self, reward):
+        """Clip reward between -1 and 1."""
+        return np.sign(reward)
+
+    def reset(self):
+        for p in self.preprocessors:
+            p.reset()
 

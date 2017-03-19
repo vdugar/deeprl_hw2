@@ -91,10 +91,10 @@ class GreedyEpsilonPolicy(Policy):
      Initial probability of choosing a random action. Can be changed
      over time.
     """
-    def __init__(self, epsilon):
+    def __init__(self, epsilon, num_actions):
         self.eps = epsilon
         self.greedy = GreedyPolicy()
-        self.random = UniformRandomPolicy()
+        self.random = UniformRandomPolicy(num_actions)
 
     def select_action(self, q_values, **kwargs):
         """Run Greedy-Epsilon for the given Q-values.
@@ -137,13 +137,13 @@ class LinearDecayGreedyEpsilonPolicy(Policy):
     """
 
     def __init__(self, start_value, end_value,
-                 num_steps):  # noqa: D102
+                 num_steps, num_actions):  # noqa: D102
         self.eps_start = start_value
         self.eps = start_value
         self.eps_end = end_value
         self.step_size = (start_value - end_value) / k
         self.greedy = GreedyPolicy()
-        self.random = UniformRandomPolicy()
+        self.random = UniformRandomPolicy(num_actions)
 
     def select_action(self, q_values, is_training = True, **kwargs):
         """Decay parameter and select action.
