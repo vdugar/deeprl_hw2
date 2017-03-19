@@ -8,12 +8,16 @@ import numpy as np
 import tensorflow as tf
 from keras.layers import (Activation, Convolution2D, Dense, Flatten, Input,
                           Permute)
-from keras.models import Model
+from keras.models import Model, Sequential
 from keras.optimizers import Adam
+from keras import backend as K
 
 import deeprl_hw2 as tfrl
 from deeprl_hw2.dqn import DQNAgent
-from deeprl_hw2.objectives import mean_huber_loss
+import gym
+from deeprl_hw2.preprocessors import *
+from deeprl_hw2.objectives import *
+from deeprl_hw2.core import *
 
 
 def create_model(window, input_shape, num_actions,
@@ -44,46 +48,31 @@ def create_model(window, input_shape, num_actions,
     -------
     keras.models.Model
       The Q-model.
-    """
-    
-    #working model but requires rewritting
-
-    #Model loss I= huber_loss
-    #Building the model
-
-    #Building the model        
-    
-    rows_image=window.shape[0]
-    colms_image=window.shape[1]
-    stack_size=window.shape[2]
-    num_actions=num_actions
+    """      
 
     #for now
-    stack_size=4
-    rows_image=84
-    colms_image=84
-    num_actions=4    
+    stack_size = window
+    rows_image = input_shape[0]
+    colms_image = input_shape[1]   
     # loss function is hardcoded to huber_loss
-    # optimizer hardcoded to adam    
-    sess=tf.Session() #create Tensor Flow Session
+    # optimizer hardcoded to adam   
 
 
     model=Sequential()
-    model.add(Convolution2D (32 , 8 , 8, subsample = (4,4),input_shape=(stack_size,rows_image,colms_image))) # subsample is the stride ( jump of the convolution filter)
+    model.add(Convolution2D (32 , 8 , 8, subsample = (4,4),input_shape=(rows_image,colms_image,stack_size))) # subsample is the stride ( jump of the convolution filter)
     model.add( Activation( 'relu'))
-    model.add(Convolution2D (64 , 4 , 4, subsample = (2,2))
+    model.add(Convolution2D (64 , 4 , 4, subsample = (2,2)))
     model.add( Activation( 'relu'))
-    model.add(Convolution2D (64 , 3 , 3, subsample = (1,1))
+    model.add(Convolution2D (64 , 3 , 3, subsample = (1,1)))
     model.add( Activation( 'relu'))
     model.add( Flatten() )
     model.add( Dense(512))
     model.add( Activation( 'relu'))
-    model.add(Dense(num_actions) #no. of action determine    
+    model.add(Dense(num_actions)) #no. of action determine    
     #changing to RMSProp
     #rms_opt=keras.optimizers.RMSprop(lr=0.001, rho=0.9, epsilon=1e-08, decay=0.0)    
     #model.compile(loss='mse',optimizer=rms_opt)
-    adam = Adam(lr=1e-6)
-    model.compile(loss=huber_loss,optimizer=adam)
+    
     return model
 
 
@@ -125,20 +114,79 @@ def get_output_folder(parent_dir, env_name):
 
 
 def main():  # noqa: D103
-    parser = argparse.ArgumentParser(description='Run DQN on Atari Breakout')
-    parser.add_argument('--env', default='Breakout-v0', help='Atari env name')
-    parser.add_argument(
-        '-o', '--output', default='atari-v0', help='Directory to save data to')
-    parser.add_argument('--seed', default=0, type=int, help='Random seed')
+    # parser = argparse.ArgumentParser(description='Run DQN on Atari Breakout')
+    # parser.add_argument('--env', default='Breakout-v0', help='Atari env name')
+    # parser.add_argument(
+    #     '-o', '--output', default='atari-v0', help='Directory to save data to')
+    # parser.add_argument('--seed', default=0, type=int, help='Random seed')
 
-    args = parser.parse_args()
-    args.input_shape = tuple(args.input_shape)
+    # args = parser.parse_args()
+    # args.input_shape = tuple(args.input_shape)
 
-    args.output = get_output_folder(args.output, args.env)
+    # args.output = get_output_folder(args.output, args.env)
 
     # here is where you should start up a session,
     # create your DQN agent, create your model, etc.
     # then you can run your fit method.
+
+    # define params
+    gamma = 0.99
+    target_update_freq = 10000
+    num_burn_in = 50000
+    train_freq= 4
+    batch_size = 32
+    hist_length = 4
+    memory_size = 1000000
+    num_iterations = 5000000
+    params = {
+        'action_update_freq': 4,
+        'epsilon': 0.05,
+        'eps_start': 1.0,
+        'eps_end': 0.1,
+        'eps_num_steps': 1000000
+    }
+
+    # create environment
+    env = gym.make('Enduro-v0')
+    num_actions = env.action_space.n
+
+    sess = tf.Session() #create Tensor Flow Session
+    K.set_session(sess)
+
+    # get model
+    q_network = create_model(hist_length, (84,84), num_actions)
+    print("Got model")
+    print(q_network.layers[0].input_shape)
+
+    # set up preprocessors
+    atari_preprocessor = AtariPreprocessor((84,84))
+    hist_preprocessor = HistoryPreprocessor(hist_length)
+    preprocessor = PreprocessorSequence( (atari_preprocessor, hist_preprocessor) )
+    print("Set up preprocessors")
+
+    # set up replay memory
+    memory = ReplayMemory(memory_size, memory_size)
+    print("Set up memory")
+
+    # set up agent
+    agent = DQNAgent(
+        q_network,
+        preprocessor,
+        memory,
+        gamma,
+        target_update_freq,
+        num_burn_in,
+        train_freq,
+        batch_size,
+        params
+    )
+    adam = Adam(lr=1e-6)
+    agent.compile(adam, huber_loss)
+    print("Set up agent.")
+
+    # fit model
+    print("Fitting Model.")
+    agent.fit(env, num_iterations)
 
 if __name__ == '__main__':
     main()

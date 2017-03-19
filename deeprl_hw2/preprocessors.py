@@ -6,6 +6,7 @@ from PIL import Image
 from deeprl_hw2 import utils
 from deeprl_hw2.core import Preprocessor
 from collections import deque
+from deeprl_hw2.core import Sample
 
 
 class HistoryPreprocessor(Preprocessor):
@@ -73,7 +74,7 @@ class HistoryPreprocessor(Preprocessor):
         """
         self.d_nw_flt.clear()
         self.d_mem_int.clear()
-        for i in range(history_length):            
+        for i in range(self.history_length):            
             self.d_nw_flt.append(np.zeros((84,84), dtype=np.float32))        
             self.d_mem_int.append(np.zeros((84,84), dtype=np.uint8) )
 
@@ -151,7 +152,7 @@ class AtariPreprocessor(Preprocessor):
         """Clip reward between -1 and 1."""
         return np.sign(reward)
 
-    def reset():
+    def reset(self):
         pass
 
 class PreprocessorSequence(Preprocessor):

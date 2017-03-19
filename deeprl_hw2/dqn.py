@@ -98,7 +98,7 @@ class DQNAgent:
         # set up target Q-network
         model_json = self.q_network.to_json()
         self.q_network.save_weights('weights_for_copy.h5')
-        self.target_network = model_from_json(model_string)
+        self.target_network = model_from_json(model_json)
         self.target_network.load_weights('weights_for_copy.h5')
 
         self.q_network.compile(loss=loss_func, optimizer=optimizer)
@@ -113,8 +113,10 @@ class DQNAgent:
         ------
         Q-values for the state(s)
         """
-        
-        return q_network.predict(state)
+        # hack to expand state dim to please keras
+        state = np.expand_dims(state, 0)
+        temp = q_network.predict_on_batch(state)
+        return temp[0, :]
 
     def select_action(self, state, stage, **kwargs):
         """Select the action based on the current state.
@@ -142,7 +144,7 @@ class DQNAgent:
         state = self.preprocessor.process_state_for_network(state)
 
         # check if we're randomly exploring
-        if stage == STAGE_RANDOM_EXPLORE:
+        if stage == DQNAgent.STAGE_RANDOM_EXPLORE:
           return self.policies['uniform'].select_action()
 
         # check if we should re-use the previous action
@@ -150,12 +152,12 @@ class DQNAgent:
           return self.prev_action
 
         # recover q_vals
-        q_vals = self.calc_q_values(state)
+        q_vals = self.calc_q_values(state, self.q_network)
 
         # choose policy depending on stage
-        if stage == STAGE_TRAIN:
+        if stage == DQNAgent.STAGE_TRAIN:
           policy = self.policies['decay_greedy']
-        elif stage == STAGE_TEST:
+        elif stage == DQNAgent.STAGE_TEST:
           policy == self.policies['eps_greedy']
 
         # return action
@@ -197,7 +199,7 @@ class DQNAgent:
             if sample.is_terminal:
               t = sample.reward
             else:
-              t = sample.reward + self.gamma * max(self.calc_q_values(
+              t = sample.reward + self.gamma * np.max(self.calc_q_values(
                 sample.next_state, self.target_network))
             
             # construct target vector for this sample. Since we only have
@@ -209,7 +211,7 @@ class DQNAgent:
             targets.append(t_vect)
 
           # perform batch SGD
-          loss = self.q_network.train_on_batch(states, target)
+          loss = self.q_network.train_on_batch(np.array(states), np.array(targets))
 
           # check if we should update target network
           if self.t % self.target_update_freq == 0:
@@ -264,6 +266,8 @@ class DQNAgent:
         for i in range(0, num_iterations):
           self.t += 1
           episode_time += 1
+          print("Epoch num: %d, Episode time: %d" % (self.t, episode_time))
+
           if is_terminal or ((max_episode_length is not None) and (episode_time > max_episode_length)):
             state = env.reset()
             self.preprocessor.reset()
@@ -271,9 +275,9 @@ class DQNAgent:
             episode_time = 0
 
           if self.t < self.num_burn_in:
-            stage = STAGE_RANDOM_EXPLORE
+            stage = DQNAgent.STAGE_RANDOM_EXPLORE
           else:
-            stage = STAGE_TRAIN
+            stage = DQNAgent.STAGE_TRAIN
 
           # get action
           action = self.select_action(state, stage)
@@ -285,11 +289,16 @@ class DQNAgent:
 
           # add to replay memory
           prev_state_mem = state_mem
-          state_mem = self.process_state_for_memory(state)
+          state_mem = self.preprocessor.process_state_for_memory(state)
           self.memory.append(prev_state_mem, action, r_proc, state_mem, is_terminal)
 
           # update network
           loss = self.update_policy()
+
+          if loss is not None:
+            print("Loss = %f" % (loss))
+
+        return self.q_network
 
     def update_target_network(self):
       """ Updates the target network by setting it equal to the current Q-network """

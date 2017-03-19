@@ -141,7 +141,7 @@ class LinearDecayGreedyEpsilonPolicy(Policy):
         self.eps_start = start_value
         self.eps = start_value
         self.eps_end = end_value
-        self.step_size = (start_value - end_value) / k
+        self.step_size = (start_value - end_value) / num_steps
         self.greedy = GreedyPolicy()
         self.random = UniformRandomPolicy(num_actions)
 
@@ -167,7 +167,8 @@ class LinearDecayGreedyEpsilonPolicy(Policy):
             act_idx = self.greedy.select_action(q_values, **kwargs)
 
         if is_training:
-            self.eps -= self.step_size
+            if self.eps > self.eps_end:
+                self.eps -= self.step_size
 
         return act_idx
 
