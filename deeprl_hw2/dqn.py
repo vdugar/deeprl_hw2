@@ -104,7 +104,6 @@ class DQNAgent:
         self.q_network.compile(loss=loss_func, optimizer=optimizer)
         self.target_network.compile(loss=loss_func, optimizer=optimizer)
 
-
     def calc_q_values(self, state, q_network):
         """Given a state (or batch of states) calculate the Q-values.
 
