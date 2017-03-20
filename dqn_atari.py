@@ -132,7 +132,7 @@ def main():  # noqa: D103
     # define params
     gamma = 0.99
     target_update_freq = 10000
-    num_burn_in = 1000
+    num_burn_in = 50000
     train_freq= 4
     batch_size = 32
     hist_length = 4
