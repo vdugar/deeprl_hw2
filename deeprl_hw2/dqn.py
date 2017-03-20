@@ -75,7 +75,8 @@ class DQNAgent:
         self.num_actions = 0
         self.policies = None
         self.prev_action = 0
-
+        self.cumulative_reward = 0
+        # self.loss_vector = [0] * 5000000
 
     def compile(self, optimizer, loss_func):
         """Setup all of the TF graph variables/ops.
@@ -263,16 +264,19 @@ class DQNAgent:
         episode_time = 0
         is_terminal = False
         state_mem = self.preprocessor.process_state_for_memory(state)
+        num_episodes = 0
         for i in range(0, num_iterations):
           self.t += 1
           episode_time += 1
-          print("Epoch num: %d, Episode time: %d" % (self.t, episode_time))
 
           if is_terminal or ((max_episode_length is not None) and (episode_time > max_episode_length)):
             state = env.reset()
             self.preprocessor.reset()
             state_mem = self.preprocessor.process_state_for_memory(state)
+            print("Episode num: %d, Episode time: %d" % (num_episodes, episode_time))
             episode_time = 0
+            num_episodes += 1
+            self.cumulative_reward = 0
 
           if self.t < self.num_burn_in:
             stage = DQNAgent.STAGE_RANDOM_EXPLORE
@@ -286,6 +290,7 @@ class DQNAgent:
           # take a step in the environment
           state, r, is_terminal, info = env.step(action)
           r_proc = self.preprocessor.process_reward(r)
+          self.cumulative_reward += r_proc
 
           # add to replay memory
           prev_state_mem = state_mem
@@ -295,18 +300,22 @@ class DQNAgent:
           # update network
           loss = self.update_policy()
 
-          if loss is not None:
-            print("Loss = %f" % (loss))
+          # eval stuff
+          if (loss is not None) and (self.t % self.params['disp_loss_freq'] == 0):
+            print("Time: %d, Loss = %f" % (self.t, loss))
+          if self.t % self.params['eval_freq'] == 0:
+            self.evaluate(env, None, max_episode_length)
 
         return self.q_network
 
     def update_target_network(self):
       """ Updates the target network by setting it equal to the current Q-network """
 
-      num_layers = len(self.q_network.layers)
-      for i in range(num_layers):
-        self.target_network.layers[i].set_weights(
-          self.q_network.layers[i].get_weights())
+      # num_layers = len(self.q_network.layers)
+      # for i in range(num_layers):
+      #   self.target_network.layers[i].set_weights(
+      #     self.q_network.layers[i].get_weights())
+      self.target_network.set_weights(self.q_network.get_weights())
 
 
     def evaluate(self, env, num_episodes, max_episode_length=None):
@@ -322,4 +331,5 @@ class DQNAgent:
         You can also call the render function here if you want to
         visually inspect your policy.
         """
-        pass
+        
+        print("Time: %d, Cumulative reward: %f" % (self.t, self.cumulative_reward))

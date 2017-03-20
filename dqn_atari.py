@@ -132,7 +132,7 @@ def main():  # noqa: D103
     # define params
     gamma = 0.99
     target_update_freq = 10000
-    num_burn_in = 50000
+    num_burn_in = 1000
     train_freq= 4
     batch_size = 32
     hist_length = 4
@@ -143,11 +143,13 @@ def main():  # noqa: D103
         'epsilon': 0.05,
         'eps_start': 1.0,
         'eps_end': 0.1,
-        'eps_num_steps': 1000000
+        'eps_num_steps': 1000000,
+        'disp_loss_freq': 4000,
+        'eval_freq': 100
     }
 
     # create environment
-    env = gym.make('Enduro-v0')
+    env = gym.make('SpaceInvaders-v0')
     num_actions = env.action_space.n
 
     sess = tf.Session() #create Tensor Flow Session
@@ -180,13 +182,13 @@ def main():  # noqa: D103
         batch_size,
         params
     )
-    adam = Adam(lr=1e-6)
-    agent.compile(adam, huber_loss)
+    adam = Adam(lr=1e-4)
+    agent.compile(adam, mean_huber_loss)
     print("Set up agent.")
 
     # fit model
     print("Fitting Model.")
-    agent.fit(env, num_iterations)
+    agent.fit(env, num_iterations, 1e4)
 
 if __name__ == '__main__':
     main()
