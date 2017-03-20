@@ -145,7 +145,8 @@ def main():  # noqa: D103
         'eps_end': 0.1,
         'eps_num_steps': 1000000,
         'disp_loss_freq': 4000,
-        'eval_freq': 100
+        'eval_freq': 100,
+        'weight_save_freq': 1000
     }
 
     # create environment

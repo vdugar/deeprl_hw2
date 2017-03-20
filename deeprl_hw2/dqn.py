@@ -306,6 +306,10 @@ class DQNAgent:
           if self.t % self.params['eval_freq'] == 0:
             self.evaluate(env, None, max_episode_length)
 
+          # save weights
+          if self.t % self.params['weight_save_freq'] == 0:
+            self.q_network.save_weights('qnet_weights.h5')
+
         return self.q_network
 
     def update_target_network(self):
