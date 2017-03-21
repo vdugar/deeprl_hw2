@@ -222,7 +222,7 @@ class ReplayMemory:
         self.memory[self.idx] = sample
         self.idx += 1
 
-        if self.idx == self.max_size - 1:
+        if self.idx == self.max_size:
           self.is_full = True
           self.idx = 0
 
