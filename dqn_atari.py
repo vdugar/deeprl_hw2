@@ -145,10 +145,10 @@ def main():  # noqa: D103
         'eps_end': 0.1,
         'eps_num_steps': 1000000,
         'disp_loss_freq': 4000,
-        'eval_freq': 10,
-        'weight_save_freq': 1000,
+        'eval_freq': 20000,
+        'weight_save_freq': 10000,
         'eval_episodes': 20,
-        'print_freq': 10
+        'print_freq': 100
     }
 
     # create environment
