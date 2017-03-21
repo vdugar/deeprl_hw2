@@ -314,7 +314,8 @@ class DQNAgent:
 
           # save weights
           if self.t % self.params['weight_save_freq'] == 0:
-            self.q_network.save_weights('qnet_weights.h5')
+            fn = "qnet_weights_" + str(self.t) + ".h5"
+            self.q_network.save_weights(fn)
 
         return self.q_network
 
