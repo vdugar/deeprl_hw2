@@ -132,25 +132,28 @@ def main():  # noqa: D103
     # define params
     gamma = 0.99
     target_update_freq = 10000
-    num_burn_in = 50000
+    num_burn_in = 1000
     train_freq= 4
     batch_size = 32
     hist_length = 4
     memory_size = 1000000
     num_iterations = 5000000
     params = {
-        'action_update_freq': 4,
+        'action_update_freq': 1,
         'epsilon': 0.05,
         'eps_start': 1.0,
         'eps_end': 0.1,
         'eps_num_steps': 1000000,
         'disp_loss_freq': 4000,
-        'eval_freq': 100,
-        'weight_save_freq': 1000
+        'eval_freq': 10,
+        'weight_save_freq': 1000,
+        'eval_episodes': 20,
+        'print_freq': 10
     }
 
     # create environment
     env = gym.make('SpaceInvaders-v0')
+    env_test = gym.make('SpaceInvaders-v0')
     num_actions = env.action_space.n
 
     sess = tf.Session() #create Tensor Flow Session
@@ -165,6 +168,10 @@ def main():  # noqa: D103
     atari_preprocessor = AtariPreprocessor((84,84))
     hist_preprocessor = HistoryPreprocessor(hist_length)
     preprocessor = PreprocessorSequence( (atari_preprocessor, hist_preprocessor) )
+
+    test_atari_preprocessor = AtariPreprocessor((84,84))
+    test_hist_preprocessor = HistoryPreprocessor(hist_length)
+    test_preprocessor = PreprocessorSequence( (test_atari_preprocessor, test_hist_preprocessor) )
     print("Set up preprocessors")
 
     # set up replay memory
@@ -175,6 +182,7 @@ def main():  # noqa: D103
     agent = DQNAgent(
         q_network,
         preprocessor,
+        test_preprocessor,
         memory,
         gamma,
         target_update_freq,
@@ -189,7 +197,7 @@ def main():  # noqa: D103
 
     # fit model
     print("Fitting Model.")
-    agent.fit(env, num_iterations, 1e4)
+    agent.fit(env, env_test, num_iterations, 1e4)
 
 if __name__ == '__main__':
     main()

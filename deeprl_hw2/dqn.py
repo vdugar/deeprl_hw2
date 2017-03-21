@@ -4,6 +4,7 @@ from policy import *
 from preprocessors import *
 from objectives import *
 from core import *
+import csv
 
 """Main DQN agent."""
 
@@ -53,6 +54,7 @@ class DQNAgent:
     def __init__(self,
                  q_network,
                  preprocessor,
+                 test_preprocessor,
                  memory,
                  gamma,
                  target_update_freq,
@@ -62,6 +64,7 @@ class DQNAgent:
                  params):
         self.q_network = q_network
         self.preprocessor = preprocessor
+        self.test_preprocessor = test_preprocessor
         self.memory = memory
         self.gamma = gamma
         self.target_update_freq = target_update_freq
@@ -119,7 +122,7 @@ class DQNAgent:
         temp = q_network.predict_on_batch(state)
         return temp[0, :]
 
-    def select_action(self, state, stage, **kwargs):
+    def select_action(self, state, stage, preprocessor, q_net, **kwargs):
         """Select the action based on the current state.
 
         You will probably want to vary your behavior here based on
@@ -142,24 +145,24 @@ class DQNAgent:
         """
         
         # preprocess state
-        state = self.preprocessor.process_state_for_network(state)
+        state = preprocessor.process_state_for_network(state)
 
         # check if we're randomly exploring
         if stage == DQNAgent.STAGE_RANDOM_EXPLORE:
           return self.policies['uniform'].select_action()
 
-        # check if we should re-use the previous action
-        if self.t % self.params['action_update_freq'] != 0:
-          return self.prev_action
-
         # recover q_vals
-        q_vals = self.calc_q_values(state, self.q_network)
+        q_vals = self.calc_q_values(state, q_net)
 
         # choose policy depending on stage
         if stage == DQNAgent.STAGE_TRAIN:
+          # check if we should re-use the previous action
+          if self.t % self.params['action_update_freq'] != 0:
+            return self.prev_action
+          
           policy = self.policies['decay_greedy']
         elif stage == DQNAgent.STAGE_TEST:
-          policy == self.policies['eps_greedy']
+          policy = self.policies['eps_greedy']
 
         # return action
         return policy.select_action(q_vals)
@@ -221,7 +224,7 @@ class DQNAgent:
 
         return loss
 
-    def fit(self, env, num_iterations, max_episode_length=None):
+    def fit(self, env, env_test, num_iterations, max_episode_length=None):
         """Fit your model to the provided environment.
 
         Its a good idea to print out things like loss, average reward,
@@ -246,7 +249,7 @@ class DQNAgent:
           How long a single episode should last before the agent
           resets. Can help exploration.
         """
-        
+
         state = env.reset()
         self.preprocessor.reset()
         self.num_actions = env.action_space.n
@@ -273,7 +276,7 @@ class DQNAgent:
             state = env.reset()
             self.preprocessor.reset()
             state_mem = self.preprocessor.process_state_for_memory(state)
-            print("Episode num: %d, Episode time: %d" % (num_episodes, episode_time))
+            # print("Episode num: %d, Episode time: %d" % (num_episodes, episode_time))
             episode_time = 0
             num_episodes += 1
             self.cumulative_reward = 0
@@ -284,7 +287,7 @@ class DQNAgent:
             stage = DQNAgent.STAGE_TRAIN
 
           # get action
-          action = self.select_action(state, stage)
+          action = self.select_action(state, stage, self.preprocessor, self.q_network)
           self.prev_action = action
 
           # take a step in the environment
@@ -301,10 +304,13 @@ class DQNAgent:
           loss = self.update_policy()
 
           # eval stuff
-          if (loss is not None) and (self.t % self.params['disp_loss_freq'] == 0):
-            print("Time: %d, Loss = %f" % (self.t, loss))
-          if self.t % self.params['eval_freq'] == 0:
-            self.evaluate(env, None, max_episode_length)
+          # if (loss is not None) and (self.t % self.params['disp_loss_freq'] == 0):
+          #   print("Time: %d, Loss = %f" % (self.t, loss))
+          if self.t > self.num_burn_in and self.t % self.params['eval_freq'] == 0:
+            self.evaluate(env_test, self.params['eval_episodes'])
+
+          # if self.t % self.params['print_freq'] == 0:
+          #   print("Iter num: %d" % self.t)
 
           # save weights
           if self.t % self.params['weight_save_freq'] == 0:
@@ -322,7 +328,7 @@ class DQNAgent:
       self.target_network.set_weights(self.q_network.get_weights())
 
 
-    def evaluate(self, env, num_episodes, max_episode_length=None):
+    def evaluate(self, env, num_episodes, max_episode_length=10000):
         """Test your agent with a provided environment.
         
         You shouldn't update your network parameters here. Also if you
@@ -336,4 +342,33 @@ class DQNAgent:
         visually inspect your policy.
         """
         
-        print("Time: %d, Cumulative reward: %f" % (self.t, self.cumulative_reward))
+        # run the policy for num episodes
+        cum_reward = 0.
+        total_episode_time = 0.
+        stage = DQNAgent.STAGE_TEST
+        for i in range(num_episodes):
+          # reset stuff
+          self.test_preprocessor.reset()
+          state = env.reset()
+          episode_time = 0
+          total_reward = 0
+          is_terminal = False
+
+          # play episode
+          while not is_terminal:
+            episode_time += 1
+
+            # get action
+            action = self.select_action(state, stage, self.test_preprocessor, self.q_network)
+
+            # take a step in the environment
+            state, r, is_terminal, info = env.step(action)
+            r_proc = self.test_preprocessor.process_reward(r)
+            total_reward += r_proc
+
+          # update totals
+          total_episode_time += episode_time
+          cum_reward += total_reward
+
+        print("%d,%f,%f" % (self.t, total_episode_time/num_episodes, cum_reward/num_episodes))
+        # return (self.t, total_episode_time/num_episodes, cum_reward/num_episodes)
