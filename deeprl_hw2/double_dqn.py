@@ -121,7 +121,7 @@ class DoubleDQNAgent:
         # hack to expand state dim to please keras
         state = np.expand_dims(state, 0)
         temp = q_network.predict_on_batch(state)
-        return temp[0, :]
+        return np.squeeze(temp)
 
     def select_action(self, state, stage, preprocessor, q_net, **kwargs):
         """Select the action based on the current state.
