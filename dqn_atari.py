@@ -199,5 +199,77 @@ def main():  # noqa: D103
     print("Fitting Model.")
     agent.fit(env, env_test, num_iterations, 1e4)
 
+def test_q_net():
+    gamma = 0.99
+    target_update_freq = 10000
+    num_burn_in = 1000
+    train_freq= 4
+    batch_size = 32
+    hist_length = 4
+    memory_size = 1000000
+    num_iterations = 5000000
+    params = {
+        'action_update_freq': 1,
+        'epsilon': 0.05,
+        'eps_start': 1.0,
+        'eps_end': 0.1,
+        'eps_num_steps': 1000000,
+        'disp_loss_freq': 4000,
+        'eval_freq': 20000,
+        'weight_save_freq': 10000,
+        'eval_episodes': 20,
+        'print_freq': 100
+    }
+
+    # create environment
+    env = gym.make('SpaceInvaders-v0')
+    env_test = gym.make('SpaceInvaders-v0')
+    num_actions = env.action_space.n
+
+    sess = tf.Session() #create Tensor Flow Session
+    K.set_session(sess)
+
+    # get model
+    q_network = create_model(hist_length, (84,84), num_actions)
+    print("Got model")
+    print(q_network.layers[0].input_shape)
+
+    # set up preprocessors
+    atari_preprocessor = AtariPreprocessor((84,84))
+    hist_preprocessor = HistoryPreprocessor(hist_length)
+    preprocessor = PreprocessorSequence( (atari_preprocessor, hist_preprocessor) )
+
+    test_atari_preprocessor = AtariPreprocessor((84,84))
+    test_hist_preprocessor = HistoryPreprocessor(hist_length)
+    test_preprocessor = PreprocessorSequence( (test_atari_preprocessor, test_hist_preprocessor) )
+    print("Set up preprocessors")
+
+    # set up replay memory
+    memory = ReplayMemory(memory_size, memory_size)
+    print("Set up memory")
+
+    # set up agent
+    agent = DQNAgent(
+        q_network,
+        preprocessor,
+        test_preprocessor,
+        memory,
+        gamma,
+        target_update_freq,
+        num_burn_in,
+        train_freq,
+        batch_size,
+        params
+    )
+    adam = Adam(lr=1e-4)
+    agent.compile(adam, mean_huber_loss)
+    agent.q_network.load_weights('qnet_weights_400000.h5')
+    print("Set up agent.")
+
+    # fit model
+    print("Evaluating Model.")
+    agent.evaluate_with_render(env, 10000, agent.q_network)
+
 if __name__ == '__main__':
     main()
+    # test_q_net()
