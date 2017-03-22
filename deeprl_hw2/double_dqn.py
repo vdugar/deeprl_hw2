@@ -81,7 +81,7 @@ class DoubleDQNAgent:
         self.cumulative_reward = 0
         # self.loss_vector = [0] * 5000000
 
-    def compile(self, optimizer, loss_func):
+    def compile(self, optimizer, loss_func, wt_dir):
         """Setup all of the TF graph variables/ops.
 
         This is inspired by the compile method on the
@@ -101,9 +101,10 @@ class DoubleDQNAgent:
         
         # set up target Q-network
         model_json = self.q_network.to_json()
-        self.q_network.save_weights('weights_for_copy.h5')
+        weight_fn = wt_dir + 'weights_for_copy.h5'
+        self.q_network.save_weights(weight_fn)
         self.target_network = model_from_json(model_json)
-        self.target_network.load_weights('weights_for_copy.h5')
+        self.target_network.load_weights(weight_fn)
 
         self.q_network.compile(loss=loss_func, optimizer=optimizer)
         self.target_network.compile(loss=loss_func, optimizer=optimizer)

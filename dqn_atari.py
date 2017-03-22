@@ -311,7 +311,7 @@ def main():  # noqa: D103
 
     # Compile model in agent
     adam = Adam(lr=1e-4)
-    agent.compile(adam, mean_huber_loss)
+    agent.compile(adam, mean_huber_loss, args.output)
     print("Set up agent.")
 
     # fit model
