@@ -330,46 +330,80 @@ class DQNAgent:
 
 
     def evaluate(self, env, num_episodes, max_episode_length=10000):
-        """Test your agent with a provided environment.
-        
-        You shouldn't update your network parameters here. Also if you
-        have any layers that vary in behavior between train/test time
-        (such as dropout or batch norm), you should set them to test.
+      """Test your agent with a provided environment.
+      
+      You shouldn't update your network parameters here. Also if you
+      have any layers that vary in behavior between train/test time
+      (such as dropout or batch norm), you should set them to test.
 
-        Basically run your policy on the environment and collect stats
-        like cumulative reward, average episode length, etc.
+      Basically run your policy on the environment and collect stats
+      like cumulative reward, average episode length, etc.
 
-        You can also call the render function here if you want to
-        visually inspect your policy.
-        """
-        
-        # run the policy for num episodes
-        cum_reward = 0.
-        total_episode_time = 0.
-        stage = DQNAgent.STAGE_TEST
-        for i in range(num_episodes):
-          # reset stuff
-          self.test_preprocessor.reset()
-          state = env.reset()
-          episode_time = 0
-          total_reward = 0
-          is_terminal = False
+      You can also call the render function here if you want to
+      visually inspect your policy.
+      """
+      
+      # run the policy for num episodes
+      cum_reward = 0.
+      total_episode_time = 0.
+      stage = DQNAgent.STAGE_TEST
+      for i in range(num_episodes):
+        # reset stuff
+        self.test_preprocessor.reset()
+        state = env.reset()
+        episode_time = 0
+        total_reward = 0
+        is_terminal = False
 
-          # play episode
-          while not is_terminal:
-            episode_time += 1
+        # play episode
+        while not is_terminal:
+          episode_time += 1
 
-            # get action
-            action = self.select_action(state, stage, self.test_preprocessor, self.q_network)
+          # get action
+          action = self.select_action(state, stage, self.test_preprocessor, self.q_network)
 
-            # take a step in the environment
-            state, r, is_terminal, info = env.step(action)
-            r_proc = self.test_preprocessor.process_reward(r)
-            total_reward += r_proc
+          # take a step in the environment
+          state, r, is_terminal, info = env.step(action)
+          r_proc = self.test_preprocessor.process_reward(r)
+          total_reward += r_proc
 
-          # update totals
-          total_episode_time += episode_time
-          cum_reward += total_reward
+        # update totals
+        total_episode_time += episode_time
+        cum_reward += total_reward
 
-        print("%d,%f,%f" % (self.t, total_episode_time/num_episodes, cum_reward/num_episodes))
-        # return (self.t, total_episode_time/num_episodes, cum_reward/num_episodes)
+      print("%d,%f,%f" % (self.t, total_episode_time/num_episodes, cum_reward/num_episodes))
+      # return (self.t, total_episode_time/num_episodes, cum_reward/num_episodes)
+
+    def evaluate_with_render(self, env, max_episode_length, q_net):
+      self.num_actions = env.action_space.n
+      self.policies = {
+        'uniform': UniformRandomPolicy(self.num_actions),
+        'greedy': GreedyPolicy(),
+        'eps_greedy': GreedyEpsilonPolicy(self.params['epsilon'], self.num_actions),
+        'decay_greedy': LinearDecayGreedyEpsilonPolicy(
+          self.params['eps_start'], self.params['eps_end'], self.params['eps_num_steps'], 
+        self.num_actions)
+      }
+
+      cum_reward = 0.
+      total_episode_time = 0.
+      stage = DQNAgent.STAGE_TEST
+      self.test_preprocessor.reset()
+      state = env.reset()
+      episode_time = 0
+      total_reward = 0
+      total_reward_proc = 0
+      is_terminal = False
+
+      while not is_terminal:
+        episode_time += 1
+        action = self.select_action(state, stage, self.test_preprocessor, q_net)
+        state, r, is_terminal, info = env.step(action)
+        r_proc = self.test_preprocessor.process_reward(r)
+        total_reward += r
+        total_reward_proc += r_proc
+        env.render()
+
+
+      print("Episode time: %d" % episode_time)
+      print("Score: %f, Clipped score: %f" % (total_reward, total_reward_proc))
