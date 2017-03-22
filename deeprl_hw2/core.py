@@ -247,3 +247,11 @@ class ReplayMemory:
     def clear(self):
         self.idx = 0
         self.is_full = False
+
+    def resize(self, new_size):
+      """ Resizes the memory """
+      del self.memory
+      self.memory = [None] * new_size
+      self.idx = 0
+      self.is_full = False
+      self.max_size = new_size

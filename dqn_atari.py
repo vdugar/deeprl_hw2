@@ -7,20 +7,22 @@ import random
 import numpy as np
 import tensorflow as tf
 from keras.layers import (Activation, Convolution2D, Dense, Flatten, Input,
-                          Permute)
+                          Permute, Lambda)
 from keras.models import Model, Sequential
 from keras.optimizers import Adam
 from keras import backend as K
 
 import deeprl_hw2 as tfrl
 from deeprl_hw2.dqn import DQNAgent
+from deeprl_hw2.double_dqn import DoubleDQNAgent
+from deeprl_hw2.linear_dqn import LinearDQNAgent
 import gym
 from deeprl_hw2.preprocessors import *
 from deeprl_hw2.objectives import *
 from deeprl_hw2.core import *
 
 
-def create_model(window, input_shape, num_actions,
+def create_model_dqn(window, input_shape, num_actions,
                  model_name='q_network'):  # noqa: D103
     """Create the Q-network model.
 
@@ -50,12 +52,9 @@ def create_model(window, input_shape, num_actions,
       The Q-model.
     """      
 
-    #for now
     stack_size = window
     rows_image = input_shape[0]
-    colms_image = input_shape[1]   
-    # loss function is hardcoded to huber_loss
-    # optimizer hardcoded to adam   
+    colms_image = input_shape[1]     
 
 
     model=Sequential()
@@ -69,10 +68,51 @@ def create_model(window, input_shape, num_actions,
     model.add( Dense(512))
     model.add( Activation( 'relu'))
     model.add(Dense(num_actions)) #no. of action determine    
-    #changing to RMSProp
-    #rms_opt=keras.optimizers.RMSprop(lr=0.001, rho=0.9, epsilon=1e-08, decay=0.0)    
-    #model.compile(loss='mse',optimizer=rms_opt)
+
+    return model
+
+def create_model_dueling(window, input_shape, num_actions,
+                 model_name='q_network'):  # noqa: D103
+    """Create the Dueling Q-network model.
+    """      
+
+    stack_size = window
+    rows_image = input_shape[0]
+    colms_image = input_shape[1]   
+
+    S = Input(shape=(rows_image, colms_image, stack_size))
+    l1 = Convolution2D (32 , 8 , 8, subsample = (4,4),
+        input_shape=(rows_image,colms_image,stack_size), activation='relu')(S) 
+    l2 = Convolution2D (64 , 4 , 4, subsample = (2,2), activation='relu')(l1)
+    l3 = Convolution2D (64 , 3 , 3, subsample = (1,1), activation='relu')(l2)
+    f1 = Flatten()(l3)
+    v1 = Dense(512, activation='relu')(f1)
+    a1 = Dense(512, activation='relu')(f1)
+
+    v2 = Dense(1)(v1)
+    a2 = Dense(num_actions)(a1)
+
+    lam = Lambda(lambda a: K.expand_dims(a[0], -1) + a[1] - 
+            K.mean(a[1], keepdims=True), output_shape=(num_actions,))([v2, a2])
+
+    model = Model(inputs = S, outputs = lam)  
     
+    return model
+
+def create_model_linear(window, input_shape, num_actions,
+                 model_name='q_network'):  # noqa: D103    
+
+    stack_size = window
+    rows_image = input_shape[0]
+    colms_image = input_shape[1]     
+
+
+    model = Sequential()
+    model.add( Flatten(input_shape=(rows_image,colms_image,stack_size)) )
+    model.add( Dense(512) )
+    model.add( Activation( 'relu'))
+    model.add(Dense(num_actions)) #no. of action determine    
+
     return model
 
 
@@ -114,25 +154,20 @@ def get_output_folder(parent_dir, env_name):
 
 
 def main():  # noqa: D103
-    # parser = argparse.ArgumentParser(description='Run DQN on Atari Breakout')
-    # parser.add_argument('--env', default='Breakout-v0', help='Atari env name')
-    # parser.add_argument(
-    #     '-o', '--output', default='atari-v0', help='Directory to save data to')
-    # parser.add_argument('--seed', default=0, type=int, help='Random seed')
+    parser = argparse.ArgumentParser(description='Run DQN on Atari Breakout')
+    parser.add_argument('-e', '--env', default='Enduro-v0', help='Atari env name')
+    parser.add_argument(
+        '-o', '--output', default='atari-v0', help='Directory to save data to')
+    parser.add_argument('-n', '--network', default='dqn', help='Network Type')
 
-    # args = parser.parse_args()
-    # args.input_shape = tuple(args.input_shape)
+    args = parser.parse_args()
 
-    # args.output = get_output_folder(args.output, args.env)
-
-    # here is where you should start up a session,
-    # create your DQN agent, create your model, etc.
-    # then you can run your fit method.
+    print args
 
     # define params
     gamma = 0.99
     target_update_freq = 10000
-    num_burn_in = 1000
+    num_burn_in = 50000
     train_freq= 4
     batch_size = 32
     hist_length = 4
@@ -145,24 +180,22 @@ def main():  # noqa: D103
         'eps_end': 0.1,
         'eps_num_steps': 1000000,
         'disp_loss_freq': 4000,
-        'eval_freq': 20000,
-        'weight_save_freq': 10000,
+        'eval_freq': 10000,
+        'weight_save_freq': 50000,
         'eval_episodes': 20,
-        'print_freq': 100
+        'print_freq': 100,
     }
 
     # create environment
-    env = gym.make('SpaceInvaders-v0')
-    env_test = gym.make('SpaceInvaders-v0')
+    env = gym.make(args.env)
+    env_test = gym.make(args.env)
     num_actions = env.action_space.n
 
-    sess = tf.Session() #create Tensor Flow Session
+    #create Tensor Flow Session
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    sess = tf.Session(config=config)
     K.set_session(sess)
-
-    # get model
-    q_network = create_model(hist_length, (84,84), num_actions)
-    print("Got model")
-    print(q_network.layers[0].input_shape)
 
     # set up preprocessors
     atari_preprocessor = AtariPreprocessor((84,84))
@@ -178,26 +211,112 @@ def main():  # noqa: D103
     memory = ReplayMemory(memory_size, memory_size)
     print("Set up memory")
 
-    # set up agent
-    agent = DQNAgent(
-        q_network,
-        preprocessor,
-        test_preprocessor,
-        memory,
-        gamma,
-        target_update_freq,
-        num_burn_in,
-        train_freq,
-        batch_size,
-        params
-    )
+    # get model and set up agent
+    if args.network == 'dqn':
+        q_network = create_model_dqn(hist_length, (84,84), num_actions)
+        agent = DQNAgent(
+            q_network,
+            preprocessor,
+            test_preprocessor,
+            memory,
+            gamma,
+            target_update_freq,
+            num_burn_in,
+            train_freq,
+            batch_size,
+            params
+        )
+    elif args.network == 'ddqn':
+        q_network = create_model_dqn(hist_length, (84,84), num_actions)
+        agent = DoubleDQNAgent(
+            q_network,
+            preprocessor,
+            test_preprocessor,
+            memory,
+            gamma,
+            target_update_freq,
+            num_burn_in,
+            train_freq,
+            batch_size,
+            params
+        )  
+    elif args.network == 'duel':
+        q_network = create_model_dueling(hist_length, (84,84), num_actions)
+        agent = DQNAgent(
+            q_network,
+            preprocessor,
+            test_preprocessor,
+            memory,
+            gamma,
+            target_update_freq,
+            num_burn_in,
+            train_freq,
+            batch_size,
+            params
+        ) 
+    elif args.network == 'linear_naive':
+        params['use_replay'] = False
+        params['use_target'] = False
+        q_network = create_model_linear(hist_length, (84,84), num_actions)
+        
+        # set params for no replay and no target 
+        memory.resize(1)
+        num_burn_in = 0
+
+        agent = LinearDQNAgent(
+            q_network,
+            preprocessor,
+            test_preprocessor,
+            memory,
+            gamma,
+            target_update_freq,
+            num_burn_in,
+            train_freq,
+            batch_size,
+            params
+        )
+    elif args.network == 'linear_soph':
+        params['use_replay'] = True
+        params['use_target'] = True
+        q_network = create_model_linear(hist_length, (84,84), num_actions)
+
+        agent = LinearDQNAgent(
+            q_network,
+            preprocessor,
+            test_preprocessor,
+            memory,
+            gamma,
+            target_update_freq,
+            num_burn_in,
+            train_freq,
+            batch_size,
+            params
+        )
+    elif args.network == 'linear_double':
+        q_network = create_model_linear(hist_length, (84,84), num_actions)
+
+        agent = DoubleDQNAgent(
+            q_network,
+            preprocessor,
+            test_preprocessor,
+            memory,
+            gamma,
+            target_update_freq,
+            num_burn_in,
+            train_freq,
+            batch_size,
+            params
+        )       
+
+
+    # Compile model in agent
     adam = Adam(lr=1e-4)
     agent.compile(adam, mean_huber_loss)
     print("Set up agent.")
 
     # fit model
     print("Fitting Model.")
-    agent.fit(env, env_test, num_iterations, 1e4)
+    agent.fit(env, env_test, num_iterations, args.output, 1e4)
 
 def test_q_net():
     gamma = 0.99

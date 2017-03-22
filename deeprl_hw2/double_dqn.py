@@ -8,8 +8,8 @@ import csv
 
 """Main DQN agent."""
 
-class DQNAgent:
-    """Class implementing DQN.
+class DoubleDQNAgent:
+    """Class implementing Double DQN.
 
     This is a basic outline of the functions/parameters you will need
     in order to implement the DQNAgnet. This is just to get you
@@ -120,8 +120,7 @@ class DQNAgent:
         # hack to expand state dim to please keras
         state = np.expand_dims(state, 0)
         temp = q_network.predict_on_batch(state)
-
-        return np.squeeze(temp)
+        return temp[0, :]
 
     def select_action(self, state, stage, preprocessor, q_net, **kwargs):
         """Select the action based on the current state.
@@ -149,20 +148,20 @@ class DQNAgent:
         state = preprocessor.process_state_for_network(state)
 
         # check if we're randomly exploring
-        if stage == DQNAgent.STAGE_RANDOM_EXPLORE:
+        if stage == DoubleDQNAgent.STAGE_RANDOM_EXPLORE:
           return self.policies['uniform'].select_action()
 
         # recover q_vals
         q_vals = self.calc_q_values(state, q_net)
 
         # choose policy depending on stage
-        if stage == DQNAgent.STAGE_TRAIN:
+        if stage == DoubleDQNAgent.STAGE_TRAIN:
           # check if we should re-use the previous action
           if self.t % self.params['action_update_freq'] != 0:
             return self.prev_action
           
           policy = self.policies['decay_greedy']
-        elif stage == DQNAgent.STAGE_TEST:
+        elif stage == DoubleDQNAgent.STAGE_TEST:
           policy = self.policies['eps_greedy']
 
         # return action
@@ -201,18 +200,19 @@ class DQNAgent:
           for sample in minibatch:
             states.append(sample.state)
             pred = self.calc_q_values(sample.state, self.q_network)
+            pred_next_state = self.calc_q_values(sample.next_state, self.q_network)
+            best_action_old_q = self.policies['greedy'].select_action(pred_next_state)
             if sample.is_terminal:
               t = sample.reward
             else:
-              t = sample.reward + self.gamma * np.max(self.calc_q_values(
-                sample.next_state, self.target_network))
+              target_q_vals = self.calc_q_values(sample.next_state, self.target_network)
+              t = sample.reward + self.gamma * target_q_vals[best_action_old_q]
             
             # construct target vector for this sample. Since we only have
             # information corresponding to a single action, set the target
             # equal to the predicted q-value for all other actions. This way we
             # won't propagate spurious gradients.
             t_vect = np.float32(pred)
-
             t_vect[sample.action] = t
             targets.append(t_vect)
 
@@ -284,9 +284,9 @@ class DQNAgent:
             self.cumulative_reward = 0
 
           if self.t < self.num_burn_in:
-            stage = DQNAgent.STAGE_RANDOM_EXPLORE
+            stage = DoubleDQNAgent.STAGE_RANDOM_EXPLORE
           else:
-            stage = DQNAgent.STAGE_TRAIN
+            stage = DoubleDQNAgent.STAGE_TRAIN
 
           # get action
           action = self.select_action(state, stage, self.preprocessor, self.q_network)
@@ -348,7 +348,7 @@ class DQNAgent:
       # run the policy for num episodes
       cum_reward = 0.
       total_episode_time = 0.
-      stage = DQNAgent.STAGE_TEST
+      stage = DoubleDQNAgent.STAGE_TEST
       for i in range(num_episodes):
         # reset stuff
         self.test_preprocessor.reset()
@@ -389,7 +389,7 @@ class DQNAgent:
 
       cum_reward = 0.
       total_episode_time = 0.
-      stage = DQNAgent.STAGE_TEST
+      stage = DoubleDQNAgent.STAGE_TEST
       self.test_preprocessor.reset()
       state = env.reset()
       episode_time = 0
