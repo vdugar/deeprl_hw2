@@ -11,6 +11,7 @@ from keras.layers import (Activation, Convolution2D, Dense, Flatten, Input,
 from keras.models import Model, Sequential
 from keras.optimizers import Adam
 from keras import backend as K
+import keras
 
 import deeprl_hw2 as tfrl
 from deeprl_hw2.dqn import DQNAgent
@@ -92,10 +93,14 @@ def create_model_dueling(window, input_shape, num_actions,
     v2 = Dense(1)(v1)
     a2 = Dense(num_actions)(a1)
 
-    lam = Lambda(lambda a: K.expand_dims(a[0], -1) + a[1] - 
-            K.mean(a[1], keepdims=True), output_shape=(num_actions,))([v2, a2])
+    value = Lambda(lambda s: K.expand_dims(s[:, 0], axis=-1), 
+        output_shape=(num_actions,))(v2)
+    advantage = Lambda(lambda a: a[:, :] - K.mean(a[:, :], keepdims=True), 
+        output_shape=(num_actions,))(a2)
 
-    model = Model(inputs = S, outputs = lam)  
+    output = keras.layers.merge([value, advantage], mode='sum')
+
+    model = Model(inputs = S, outputs = output)  
     
     return model
 
