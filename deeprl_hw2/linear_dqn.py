@@ -193,8 +193,12 @@ class LinearDQNAgent:
           return None
         else:
           # sample transitions
-          minibatch = self.preprocessor.process_batch(
-            self.memory.sample(self.batch_size, [0]))
+          if self.params['use_replay']:
+            minibatch = self.preprocessor.process_batch(
+                self.memory.sample(self.batch_size))
+          else:
+            minibatch = self.preprocessor.process_batch(
+              self.memory.sample(self.batch_size, [0]))
 
           # determine targets
           targets = []
