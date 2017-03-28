@@ -377,7 +377,7 @@ class DoubleDQNAgent:
       print("%d,%f,%f" % (self.t, total_episode_time/num_episodes, cum_reward/num_episodes))
       # return (self.t, total_episode_time/num_episodes, cum_reward/num_episodes)
 
-    def evaluate_with_render(self, env, max_episode_length, q_net):
+    def evaluate_with_render(self, env, num_episodes, max_episode_length, q_net, t):
       self.num_actions = env.action_space.n
       self.policies = {
         'uniform': UniformRandomPolicy(self.num_actions),
@@ -391,22 +391,29 @@ class DoubleDQNAgent:
       cum_reward = 0.
       total_episode_time = 0.
       stage = DoubleDQNAgent.STAGE_TEST
-      self.test_preprocessor.reset()
-      state = env.reset()
-      episode_time = 0
-      total_reward = 0
-      total_reward_proc = 0
-      is_terminal = False
+      for i in range(num_episodes):
+        # reset stuff
+        self.test_preprocessor.reset()
+        state = env.reset()
+        episode_time = 0
+        total_reward = 0
+        is_terminal = False
 
-      while not is_terminal:
-        episode_time += 1
-        action = self.select_action(state, stage, self.test_preprocessor, q_net)
-        state, r, is_terminal, info = env.step(action)
-        r_proc = self.test_preprocessor.process_reward(r)
-        total_reward += r
-        total_reward_proc += r_proc
-        env.render()
+        # play episode
+        while not is_terminal:
+          episode_time += 1
 
+          # get action
+          action = self.select_action(state, stage, self.test_preprocessor, self.q_network)
 
-      print("Episode time: %d" % episode_time)
-      print("Score: %f, Clipped score: %f" % (total_reward, total_reward_proc))
+          # take a step in the environment
+          state, r, is_terminal, info = env.step(action)
+          r_proc = self.test_preprocessor.process_reward(r)
+
+          total_reward += r
+
+        # update totals
+        total_episode_time += episode_time
+        cum_reward += total_reward
+
+      print("%d,%f,%f" % (t, total_episode_time/num_episodes, cum_reward/num_episodes))

@@ -21,6 +21,7 @@ import gym
 from deeprl_hw2.preprocessors import *
 from deeprl_hw2.objectives import *
 from deeprl_hw2.core import *
+from gym import wrappers
 
 
 def create_model_dqn(window, input_shape, num_actions,
@@ -323,10 +324,21 @@ def main():  # noqa: D103
     print("Fitting Model.")
     agent.fit(env, env_test, num_iterations, args.output, 1e4)
 
-def test_q_net():
+def eval_q_net():
+    parser = argparse.ArgumentParser(description='Run DQN on Atari Breakout')
+    parser.add_argument('-e', '--env', default='Enduro-v0', help='Atari env name')
+    parser.add_argument(
+        '-d', '--dir', default='atari-v0', help='Directory to read data from')
+    parser.add_argument('-n', '--network', default='dqn', help='Network Type')
+
+    args = parser.parse_args()
+
+    print args
+
+    # define params
     gamma = 0.99
     target_update_freq = 10000
-    num_burn_in = 1000
+    num_burn_in = 50000
     train_freq= 4
     batch_size = 32
     hist_length = 4
@@ -339,24 +351,23 @@ def test_q_net():
         'eps_end': 0.1,
         'eps_num_steps': 1000000,
         'disp_loss_freq': 4000,
-        'eval_freq': 20000,
-        'weight_save_freq': 10000,
+        'eval_freq': 10000,
+        'weight_save_freq': 50000,
         'eval_episodes': 20,
-        'print_freq': 100
+        'print_freq': 100,
     }
 
     # create environment
-    env = gym.make('SpaceInvaders-v0')
-    env_test = gym.make('SpaceInvaders-v0')
+    env = gym.make(args.env)
+    env_test = gym.make(args.env)
+    # env_test = wrappers.Monitor(env_test, args.dir+"monitor/", force=True)
     num_actions = env.action_space.n
 
-    sess = tf.Session() #create Tensor Flow Session
+    #create Tensor Flow Session
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    sess = tf.Session(config=config)
     K.set_session(sess)
-
-    # get model
-    q_network = create_model(hist_length, (84,84), num_actions)
-    print("Got model")
-    print(q_network.layers[0].input_shape)
 
     # set up preprocessors
     atari_preprocessor = AtariPreprocessor((84,84))
@@ -372,28 +383,120 @@ def test_q_net():
     memory = ReplayMemory(memory_size, memory_size)
     print("Set up memory")
 
-    # set up agent
-    agent = DQNAgent(
-        q_network,
-        preprocessor,
-        test_preprocessor,
-        memory,
-        gamma,
-        target_update_freq,
-        num_burn_in,
-        train_freq,
-        batch_size,
-        params
-    )
+    # get model and set up agent
+    if args.network == 'dqn':
+        q_network = create_model_dqn(hist_length, (84,84), num_actions)
+        agent = DQNAgent(
+            q_network,
+            preprocessor,
+            test_preprocessor,
+            memory,
+            gamma,
+            target_update_freq,
+            num_burn_in,
+            train_freq,
+            batch_size,
+            params
+        )
+    elif args.network == 'ddqn':
+        q_network = create_model_dqn(hist_length, (84,84), num_actions)
+        agent = DoubleDQNAgent(
+            q_network,
+            preprocessor,
+            test_preprocessor,
+            memory,
+            gamma,
+            target_update_freq,
+            num_burn_in,
+            train_freq,
+            batch_size,
+            params
+        )  
+    elif args.network == 'duel':
+        q_network = create_model_dueling(hist_length, (84,84), num_actions)
+        agent = DQNAgent(
+            q_network,
+            preprocessor,
+            test_preprocessor,
+            memory,
+            gamma,
+            target_update_freq,
+            num_burn_in,
+            train_freq,
+            batch_size,
+            params
+        ) 
+    elif args.network == 'linear_naive':
+        params['use_replay'] = False
+        params['use_target'] = False
+        q_network = create_model_linear(hist_length, (84,84), num_actions)
+        
+        # set params for no replay and no target 
+        memory.resize(1)
+        num_burn_in = 0
+
+        agent = LinearDQNAgent(
+            q_network,
+            preprocessor,
+            test_preprocessor,
+            memory,
+            gamma,
+            target_update_freq,
+            num_burn_in,
+            train_freq,
+            batch_size,
+            params
+        )
+    elif args.network == 'linear_soph':
+        params['use_replay'] = True
+        params['use_target'] = True
+        q_network = create_model_linear(hist_length, (84,84), num_actions)
+
+        agent = LinearDQNAgent(
+            q_network,
+            preprocessor,
+            test_preprocessor,
+            memory,
+            gamma,
+            target_update_freq,
+            num_burn_in,
+            train_freq,
+            batch_size,
+            params
+        )
+    elif args.network == 'linear_double':
+        q_network = create_model_linear(hist_length, (84,84), num_actions)
+
+        agent = DoubleDQNAgent(
+            q_network,
+            preprocessor,
+            test_preprocessor,
+            memory,
+            gamma,
+            target_update_freq,
+            num_burn_in,
+            train_freq,
+            batch_size,
+            params
+        )       
+
+
+    # Compile model in agent
     adam = Adam(lr=1e-4)
-    agent.compile(adam, mean_huber_loss)
-    agent.q_network.load_weights('qnet_weights_400000.h5')
+    agent.compile(adam, mean_huber_loss, args.dir)
     print("Set up agent.")
 
-    # fit model
-    print("Evaluating Model.")
-    agent.evaluate_with_render(env, 10000, agent.q_network)
+    # Evaluate
+    # special-case for first iteration
+    agent.evaluate_with_render(env_test, 20, 10000, agent.q_network, 0)
+
+    for i in range(100000, 2000001, 100000):
+        fn = args.dir + "qnet_weights_" + str(i) + ".h5"
+        agent.q_network.load_weights(fn)
+        agent.evaluate_with_render(env_test, 20, 10000, agent.q_network, i)
+
 
 if __name__ == '__main__':
-    main()
+    # main()
     # test_q_net()
+    eval_q_net()
