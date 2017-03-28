@@ -360,7 +360,9 @@ def eval_q_net():
     # create environment
     env = gym.make(args.env)
     env_test = gym.make(args.env)
-    env_test = wrappers.Monitor(env_test, args.dir+"monitor/", force=True)
+    vid_fn = lambda x: True
+    env_test = wrappers.Monitor(env_test, args.dir+"monitor/", 
+        video_callable = vid_fn,force=True)
     num_actions = env.action_space.n
 
     #create Tensor Flow Session
