@@ -360,7 +360,7 @@ def eval_q_net():
     # create environment
     env = gym.make(args.env)
     env_test = gym.make(args.env)
-    # env_test = wrappers.Monitor(env_test, args.dir+"monitor/", force=True)
+    env_test = wrappers.Monitor(env_test, args.dir+"monitor/", force=True)
     num_actions = env.action_space.n
 
     #create Tensor Flow Session
@@ -488,13 +488,19 @@ def eval_q_net():
 
     # Evaluate
     # special-case for first iteration
-    agent.evaluate_with_render(env_test, 20, 10000, agent.q_network, 0)
+    agent.evaluate_with_render(env_test, 1, 10000, agent.q_network, 0)
 
-    for i in range(100000, 2000001, 100000):
-        fn = args.dir + "qnet_weights_" + str(i) + ".h5"
+    # for i in range(100000, 2000001, 100000):
+    #     fn = args.dir + "qnet_weights_" + str(i) + ".h5"
+    #     agent.q_network.load_weights(fn)
+    #     agent.evaluate_with_render(env_test, 20, 10000, agent.q_network, i)
+
+    # save videos
+    steps = [600000, 1200000, 2000000]
+    for step in steps:
+        fn = args.dir + "qnet_weights_" + str(step) + ".h5"
         agent.q_network.load_weights(fn)
-        agent.evaluate_with_render(env_test, 20, 10000, agent.q_network, i)
-
+        agent.evaluate_with_render(env_test, 1, 10000, agent.q_network, step)
 
 if __name__ == '__main__':
     # main()
