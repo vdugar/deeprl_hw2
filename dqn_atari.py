@@ -505,6 +505,6 @@ def eval_q_net():
         agent.evaluate_with_render(env_test, 1, 10000, agent.q_network, step)
 
 if __name__ == '__main__':
-    # main()
+    main()
     # test_q_net()
-    eval_q_net()
+    # eval_q_net()
